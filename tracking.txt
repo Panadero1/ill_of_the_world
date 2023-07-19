@@ -1,0 +1,4 @@
+type: memory(%)
+u8: 0.3
+(u8, u8): 0.5
+struct<u8, u8>: 0.5

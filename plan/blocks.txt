@@ -1,0 +1,16 @@
+air
+water
+cloud
+dirt
+mud
+stone
+lava
+plant
+cannonN
+cannonS
+cannonE
+cannonW
+shrine
+fire
+smth
+smth
