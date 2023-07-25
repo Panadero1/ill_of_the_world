@@ -1,11 +1,14 @@
-use std::{io::{BufReader, Cursor}, path::PathBuf};
+use std::{
+    io::{BufReader, Cursor},
+    path::PathBuf,
+};
 
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 
 use crate::graphics::{model, texture::Texture};
 
-use super::ui::{model::UIModel, self};
+use super::ui::{self, model::UIModel};
 
 pub async fn load_model_ui(
     name: &str,
@@ -16,7 +19,15 @@ pub async fn load_model_ui(
     canvas_size: PhysicalSize<u32>,
     positioner: ui::model::Positioner,
 ) -> anyhow::Result<UIModel> {
-    let diffuse_texture = load_texture(texture_file_name, false, device, queue).await?;
+    let subdir = PathBuf::new();
+    let diffuse_texture = load_texture(
+        texture_file_name,
+        &subdir,
+        false,
+        device,
+        queue,
+    )
+    .await?;
 
     Ok(UIModel::new(
         name,
@@ -34,7 +45,9 @@ pub async fn load_model(
     queue: &wgpu::Queue,
     layout: &wgpu::BindGroupLayout,
 ) -> anyhow::Result<model::Model> {
-    let obj_text = load_string(file_name).await?;
+    let subdir = PathBuf::from("model");
+
+    let obj_text = load_string(file_name, &subdir).await?;
     let obj_cursor = Cursor::new(obj_text);
     let mut obj_reader = BufReader::new(obj_cursor);
 
@@ -46,7 +59,7 @@ pub async fn load_model(
             ..Default::default()
         },
         |p| async move {
-            let mat_text = load_string(file_name).await.unwrap();
+            let mat_text = load_string(&p, &PathBuf::from("model")).await.unwrap();
             tobj::load_mtl_buf(&mut BufReader::new(Cursor::new(mat_text)))
         },
     )
@@ -56,8 +69,8 @@ pub async fn load_model(
     for m in obj_materials? {
         // For loading diffuse map
         // I can also load normal maps, bump maps and specular maps for later(?)
-        let diffuse_texture = load_texture(&m.diffuse_texture, false, device, queue).await?;
-        let normal_texture = load_texture(&m.normal_texture, true, device, queue).await?;
+        let diffuse_texture = load_texture(&m.diffuse_texture, &subdir, false, device, queue).await?;
+        let normal_texture = load_texture(&m.normal_texture, &subdir, true, device, queue).await?;
 
         materials.push(model::Material::new(
             device,
@@ -179,16 +192,23 @@ pub async fn load_model(
 }
 
 pub async fn load_texture(
-    file_name: &PathBuf,
+    file_name: &str,
+    subdir: &PathBuf,
     is_normal_map: bool,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
 ) -> anyhow::Result<Texture> {
-    let data = load_binary(file_name).await?;
-    Texture::from_bytes(device, queue, &data, file_name.to_str().unwrap(), is_normal_map)
+    let data = load_binary(file_name, subdir).await?;
+    Texture::from_bytes(
+        device,
+        queue,
+        &data,
+        file_name,
+        is_normal_map,
+    )
 }
 
-pub async fn load_string(file_name: &PathBuf, subdir: &PathBuf) -> anyhow::Result<String> {
+pub async fn load_string(file_name: &str, subdir: &PathBuf) -> anyhow::Result<String> {
     let path = std::path::Path::new(env!("OUT_DIR"))
         .join("assets")
         .join(subdir)
@@ -197,7 +217,7 @@ pub async fn load_string(file_name: &PathBuf, subdir: &PathBuf) -> anyhow::Resul
     Ok(txt)
 }
 
-pub async fn load_binary(file_name: &PathBuf, subdir: &PathBuf) -> anyhow::Result<Vec<u8>> {
+pub async fn load_binary(file_name: &str, subdir: &PathBuf) -> anyhow::Result<Vec<u8>> {
     let path = std::path::Path::new(env!("OUT_DIR"))
         .join("assets")
         .join(subdir)

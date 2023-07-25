@@ -1,4 +1,4 @@
-use std::{iter, path::PathBuf};
+use std::iter;
 
 use cgmath::{InnerSpace, Rotation3, Zero};
 use wgpu::util::DeviceExt;

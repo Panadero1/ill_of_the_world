@@ -174,10 +174,11 @@ pub fn rect_vertices(
     pos: PhysicalPosition<u32>,
 ) -> Vec<UIVertex> {
     // Bottom left CCW to bottom right
+    println!("aah");
     let canvas_size = PhysicalSize::new(canvas_size.width as f32, canvas_size.height as f32);
     let pos = PhysicalPosition::new(pos.x as f32, pos.y as f32);
     let size = PhysicalSize::new(size.width as f32, size.height as f32);
-    let result = vec![
+    vec![
         // Top left
         UIVertex {
             position: stretch_to_range(pos.x / canvas_size.width, pos.y / canvas_size.height),
@@ -187,7 +188,7 @@ pub fn rect_vertices(
         UIVertex {
             position: stretch_to_range(
                 pos.x / canvas_size.width,
-                (pos.y + size.width) / canvas_size.height,
+                (pos.y + size.height) / canvas_size.height,
             ),
             tex_coords: [0.0, 1.0],
         },
@@ -207,10 +208,7 @@ pub fn rect_vertices(
             ),
             tex_coords: [1.0, 0.0],
         },
-    ];
-
-    println!("{:#?}", result);
-    result
+    ]
 }
 
 fn stretch_to_range(x: f32, y: f32) -> [f32; 3] {
