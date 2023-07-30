@@ -53,9 +53,9 @@ pub struct Block {
     /// the type and rotation of the block
     /// the four least significant bits (2^0 through 2^3) represent the type of block
     /// the four most significant bits (2^4 through 2^7) represent its rotation
-    kind: u8,
+    pub kind: u8,
     /// the structural state and internal tracking for the block
-    state: u8,
+    pub state: u8,
 }
 
 impl Block {
