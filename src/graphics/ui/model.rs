@@ -174,7 +174,6 @@ pub fn rect_vertices(
     pos: PhysicalPosition<u32>,
 ) -> Vec<UIVertex> {
     // Bottom left CCW to bottom right
-    println!("aah");
     let canvas_size = PhysicalSize::new(canvas_size.width as f32, canvas_size.height as f32);
     let pos = PhysicalPosition::new(pos.x as f32, pos.y as f32);
     let size = PhysicalSize::new(size.width as f32, size.height as f32);
