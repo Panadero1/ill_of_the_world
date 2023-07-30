@@ -20,14 +20,7 @@ pub async fn load_model_ui(
     positioner: ui::model::Positioner,
 ) -> anyhow::Result<UIModel> {
     let subdir = PathBuf::new();
-    let diffuse_texture = load_texture(
-        texture_file_name,
-        &subdir,
-        false,
-        device,
-        queue,
-    )
-    .await?;
+    let diffuse_texture = load_texture(texture_file_name, &subdir, false, device, queue).await?;
 
     Ok(UIModel::new(
         name,
@@ -69,8 +62,24 @@ pub async fn load_model(
     for m in obj_materials? {
         // For loading diffuse map
         // I can also load normal maps, bump maps and specular maps for later(?)
-        let diffuse_texture = load_texture(&m.diffuse_texture, &subdir, false, device, queue).await?;
-        let normal_texture = load_texture(&m.normal_texture, &subdir, true, device, queue).await?;
+        let diffuse_texture = load_texture(
+            &m.diffuse_texture
+                .expect(&format!("material {} needs diffuse texture", m.name)),
+            &subdir,
+            false,
+            device,
+            queue,
+        )
+        .await?;
+        let normal_texture = load_texture(
+            &m.normal_texture
+                .expect(&format!("material {} needs normal texture", m.name)),
+            &subdir,
+            true,
+            device,
+            queue,
+        )
+        .await?;
 
         materials.push(model::Material::new(
             device,
@@ -199,13 +208,7 @@ pub async fn load_texture(
     queue: &wgpu::Queue,
 ) -> anyhow::Result<Texture> {
     let data = load_binary(file_name, subdir).await?;
-    Texture::from_bytes(
-        device,
-        queue,
-        &data,
-        file_name,
-        is_normal_map,
-    )
+    Texture::from_bytes(device, queue, &data, file_name, is_normal_map)
 }
 
 pub async fn load_string(file_name: &str, subdir: &PathBuf) -> anyhow::Result<String> {

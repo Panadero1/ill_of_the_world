@@ -1,7 +1,7 @@
 use std::iter;
 
 use cgmath::{InnerSpace, Rotation3, Zero};
-use wgpu::util::DeviceExt;
+use wgpu::{util::DeviceExt, Backends, InstanceDescriptor};
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::*,
@@ -55,9 +55,19 @@ impl State {
         let size = window.inner_size();
 
         // The instance is a handle to our GPU
-        // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
-        let instance = wgpu::Instance::new(wgpu::Backends::all());
-        let surface = unsafe { instance.create_surface(window) };
+        let instance_desc = InstanceDescriptor {
+            // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
+            backends: Backends::all(),
+            // this is a slower compiler, but we don't need external libraries to use it
+            // so it's just easier this way
+            dx12_shader_compiler: wgpu::Dx12Compiler::Fxc,
+        };
+        let instance = wgpu::Instance::new(instance_desc);
+        let surface = unsafe {
+            instance
+                .create_surface(window)
+                .expect("unable to make surface")
+        };
 
         // Todo: are all adapters supported by this filtering? Does it do a good job here?
         // https://docs.rs/wgpu/latest/wgpu/struct.Adapter.html
@@ -92,18 +102,22 @@ impl State {
             .await
             .unwrap();
 
+        let surf_caps = surface.get_capabilities(&adapter);
+
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface.get_supported_formats(&adapter)[0],
+            format: surf_caps.formats[0],
             width: size.width,
             height: size.height,
             // Fifo means VSync
-            // If I need to change this, I can do surface.get_supported_modes()
+            // If I need to change this, I can do surface.get_capabilities
             // Always guaranteed to work on all platforms are:
             // - Fifo
             // - AutoVsync
             // - AutoNoVsync
             present_mode: wgpu::PresentMode::Fifo,
+            alpha_mode: wgpu::CompositeAlphaMode::Opaque,
+            view_formats: vec![],
         };
         surface.configure(&device, &config);
 
@@ -141,6 +155,7 @@ impl State {
                     wgpu::BindGroupLayoutEntry {
                         binding: 3,
                         visibility: wgpu::ShaderStages::FRAGMENT,
+                        // This should match the filterable field of the corresponding entry above
                         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                         count: None,
                     },
@@ -327,6 +342,7 @@ impl State {
                     wgpu::BindGroupLayoutEntry {
                         binding: 1,
                         visibility: wgpu::ShaderStages::FRAGMENT,
+                        // This should match the filterable field of the corresponding entry above
                         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                         count: None,
                     },
