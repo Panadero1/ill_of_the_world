@@ -20,7 +20,10 @@ use super::{
     light::DrawLight,
     model::{DrawModel, Model, ModelVertex, Vertex},
     resources, texture,
-    ui::model::{DrawUI, UIModel},
+    ui::{
+        model::{DrawUI, UIModel},
+        UIManager,
+    },
 };
 
 pub struct State {
@@ -31,7 +34,6 @@ pub struct State {
     pub size: PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
     light_render_pipeline: wgpu::RenderPipeline,
-    ui_render_pipeline: wgpu::RenderPipeline,
     camera: Camera,
     projection: Projection,
     pub camera_controller: CameraController,
@@ -42,7 +44,7 @@ pub struct State {
     instance_buffer: wgpu::Buffer,
     depth_texture: texture::Texture,
     obj_model: Model,
-    ui_model: UIModel,
+    ui_mgr: UIManager,
     light_uniform: LightUniform,
     light_buffer: wgpu::Buffer,
     light_bind_group: wgpu::BindGroup,
@@ -325,68 +327,41 @@ impl State {
             )
         };
 
-        let ui_texture_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("ui_texture_bind_group_layout"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            multisampled: false,
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        // This should match the filterable field of the corresponding entry above
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                ],
-            });
+        let mut ui_mgr = UIManager::new(&device, &config);
 
-        let ui_render_pipeline = {
-            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("UI Pipeline Layout"),
-                bind_group_layouts: &[&ui_texture_bind_group_layout],
-                push_constant_ranges: &[],
-            });
-            let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("UI Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("ui.wgsl").into()),
-            };
-            create_render_pipeline(
+        ui_mgr
+            .add(
+                "BR corner",
+                "happy-tree.png",
                 &device,
-                &layout,
-                config.format,
-                Some(texture::Texture::DEPTH_FORMAT),
-                &[UIVertex::desc()],
-                shader,
-                "UI",
+                &queue,
+                size,
+                |canvas_size| {
+                    model::rect_vertices(
+                        canvas_size,
+                        PhysicalSize::new(200, 200),
+                        PhysicalPosition::new((canvas_size.width as i32) - 200, (canvas_size.height as i32) - 200),
+                    )
+                },
             )
-        };
+            .await;
 
-        let ui_model = resources::load_model_ui(
-            "UI test",
-            "img/happy-tree.png",
-            &device,
-            &queue,
-            &ui_texture_bind_group_layout,
-            size,
-            |canvas_size| {
-                model::rect_vertices(
-                    canvas_size,
-                    PhysicalSize::new(200, 200),
-                    PhysicalPosition::new(0, 0),
-                )
-            },
-        )
-        .await
-        .unwrap();
+        ui_mgr
+            .add(
+                "UI test",
+                "happy-tree.png",
+                &device,
+                &queue,
+                size,
+                |canvas_size| {
+                    model::rect_vertices(
+                        canvas_size,
+                        PhysicalSize::new(200, 200),
+                        PhysicalPosition::new(0, 0),
+                    )
+                },
+            )
+            .await;
 
         Self {
             surface,
@@ -396,7 +371,6 @@ impl State {
             size,
             render_pipeline,
             light_render_pipeline,
-            ui_render_pipeline,
             camera,
             projection,
             camera_controller,
@@ -407,7 +381,7 @@ impl State {
             instance_buffer,
             depth_texture,
             obj_model,
-            ui_model,
+            ui_mgr,
             light_uniform,
             light_buffer,
             light_bind_group,
@@ -424,7 +398,7 @@ impl State {
             self.depth_texture =
                 texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
             self.projection.resize(new_size.width, new_size.height);
-            self.ui_model.update_position(&self.device, new_size);
+            self.ui_mgr.update_positions(&self.device, new_size);
         }
     }
 
@@ -540,10 +514,11 @@ impl State {
                 &self.light_bind_group,
             );
 
-            render_pass.set_pipeline(&self.ui_render_pipeline);
+            render_pass.set_pipeline(&self.ui_mgr.pipeline);
 
-            render_pass.draw_model_ui(&self.ui_model);
-
+            for m in &self.ui_mgr.models {
+                render_pass.draw_model_ui(m);
+            }
             // There is custom drop code for type RenderPass that uses it
             // Need to drop before next borrow of encoder which is why this is in a block
         }
@@ -555,7 +530,7 @@ impl State {
     }
 }
 
-fn create_render_pipeline(
+pub fn create_render_pipeline(
     device: &wgpu::Device,
     layout: &wgpu::PipelineLayout,
     color_format: wgpu::TextureFormat,

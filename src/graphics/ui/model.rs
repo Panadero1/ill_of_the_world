@@ -81,7 +81,7 @@ pub struct UIModel {
 }
 
 impl UIModel {
-    const INDICES: &'static [u16] = &[0, 1, 2, 2, 3, 0, /* padding */ 0];
+    const INDICES: &'static [u16] = &[0, 1, 2, 2, 3, 0];
     // top left CCW around to top right (U shape)
     pub fn new(
         name: &str,
@@ -171,7 +171,7 @@ where
 pub fn rect_vertices(
     canvas_size: PhysicalSize<u32>,
     size: PhysicalSize<u32>,
-    pos: PhysicalPosition<u32>,
+    pos: PhysicalPosition<i32>,
 ) -> Vec<UIVertex> {
     // Bottom left CCW to bottom right
     let canvas_size = PhysicalSize::new(canvas_size.width as f32, canvas_size.height as f32);

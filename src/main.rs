@@ -5,5 +5,4 @@ pub mod util;
 pub mod world;
 
 fn main() {
-    pollster::block_on(graphics::run());
 }

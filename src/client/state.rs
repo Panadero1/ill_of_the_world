@@ -1,6 +1,6 @@
-use crate::world::World;
+use crate::{world::World, graphics};
 
-struct State {
+pub struct State {
     world: World,
 }
 
@@ -11,5 +11,8 @@ impl State {
         }
     }
 
-    
+    pub fn run(&mut self) {
+        pollster::block_on(graphics::run());
+        // todo: add api for graphics and pages
+    }
 }

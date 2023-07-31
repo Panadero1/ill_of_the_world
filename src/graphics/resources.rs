@@ -19,7 +19,7 @@ pub async fn load_model_ui(
     canvas_size: PhysicalSize<u32>,
     positioner: ui::model::Positioner,
 ) -> anyhow::Result<UIModel> {
-    let subdir = PathBuf::new();
+    let subdir = PathBuf::from("ui");
     let diffuse_texture = load_texture(texture_file_name, &subdir, false, device, queue).await?;
 
     Ok(UIModel::new(
