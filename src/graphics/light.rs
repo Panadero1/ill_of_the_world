@@ -1,8 +1,6 @@
 use std::ops::Range;
 
-use super::{
-    model::{Mesh, Model},
-};
+use super::m_3d::model::{Mesh, Model};
 
 pub trait DrawLight<'a> {
     fn draw_light_mesh(

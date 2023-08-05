@@ -6,9 +6,9 @@ use std::{
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 
-use crate::graphics::{model, texture::Texture};
+use crate::graphics::{m_3d, texture::Texture};
 
-use super::ui::{self, model::UIModel};
+use super::ui::{self, model::Model};
 
 pub async fn load_model_ui(
     name: &str,
@@ -18,11 +18,11 @@ pub async fn load_model_ui(
     layout: &wgpu::BindGroupLayout,
     canvas_size: PhysicalSize<u32>,
     positioner: ui::model::Positioner,
-) -> anyhow::Result<UIModel> {
+) -> anyhow::Result<Model> {
     let subdir = PathBuf::from("ui");
     let diffuse_texture = load_texture(texture_file_name, &subdir, false, device, queue).await?;
 
-    Ok(UIModel::new(
+    Ok(Model::new(
         name,
         device,
         diffuse_texture,
@@ -33,14 +33,15 @@ pub async fn load_model_ui(
 }
 
 pub async fn load_model(
-    file_name: &str,
+    name: &str,
+    obj_file_name: &str,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     layout: &wgpu::BindGroupLayout,
-) -> anyhow::Result<model::Model> {
+) -> anyhow::Result<m_3d::model::Model> {
     let subdir = PathBuf::from("model");
 
-    let obj_text = load_string(file_name, &subdir).await?;
+    let obj_text = load_string(obj_file_name, &subdir).await?;
     let obj_cursor = Cursor::new(obj_text);
     let mut obj_reader = BufReader::new(obj_cursor);
 
@@ -81,7 +82,7 @@ pub async fn load_model(
         )
         .await?;
 
-        materials.push(model::Material::new(
+        materials.push(m_3d::model::Material::new(
             device,
             &m.name,
             diffuse_texture,
@@ -94,7 +95,7 @@ pub async fn load_model(
         .into_iter()
         .map(|m| {
             let mut vertices = (0..m.mesh.positions.len() / 3)
-                .map(|i| model::ModelVertex {
+                .map(|i| m_3d::vertex::ModelVertex {
                     position: [
                         m.mesh.positions[i * 3],
                         m.mesh.positions[i * 3 + 1],
@@ -177,18 +178,18 @@ pub async fn load_model(
             }
 
             let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some(&format!("{:?} Vertex Buffer", file_name)),
+                label: Some(&format!("{:?} Vertex Buffer", obj_file_name)),
                 contents: bytemuck::cast_slice(&vertices),
                 usage: wgpu::BufferUsages::VERTEX,
             });
             let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some(&format!("{:?} Index Buffer", file_name)),
+                label: Some(&format!("{:?} Index Buffer", obj_file_name)),
                 contents: bytemuck::cast_slice(&m.mesh.indices),
                 usage: wgpu::BufferUsages::INDEX,
             });
 
-            model::Mesh {
-                name: file_name.to_string(),
+            m_3d::model::Mesh {
+                name: String::from(name),
                 vertex_buffer,
                 index_buffer,
                 num_elements: m.mesh.indices.len() as u32,
@@ -197,7 +198,7 @@ pub async fn load_model(
         })
         .collect::<Vec<_>>();
 
-    Ok(model::Model { meshes, materials })
+    Ok(m_3d::model::Model { meshes, materials })
 }
 
 pub async fn load_texture(

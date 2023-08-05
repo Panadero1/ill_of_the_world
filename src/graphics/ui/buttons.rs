@@ -1,6 +1,6 @@
 use winit::dpi::PhysicalSize;
 
-use super::{component::Component, model::UIVertex};
+use super::{component::Component, vertex::UIVertex};
 
 // todo: move this somewhere else
 pub struct StartButton {

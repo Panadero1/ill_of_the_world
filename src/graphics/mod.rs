@@ -12,21 +12,24 @@ use winit::{
 // This means that you have to be more careful with how you layout your struct
 
 mod camera;
-mod instance;
+pub mod instance;
 mod light;
+pub mod m_3d;
 pub mod model;
 pub mod page;
 mod resources;
-mod state;
+pub mod state;
 pub mod texture;
 pub mod ui;
 
-pub async fn run() {
+pub async fn run(modifier: Box<dyn Modifier>) {
     env_logger::init();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
     let mut state = state::State::new(&window).await;
+
+    modifier.init_state(&mut state);
     let mut last_render_time = instant::Instant::now();
 
     event_loop.run(move |event, _, control_flow| {
@@ -59,7 +62,7 @@ pub async fn run() {
                 let dt = now - last_render_time;
                 last_render_time = now;
                 state.update(dt);
-                
+
                 match state.render() {
                     Ok(_) => (),
                     // Reconfigure the surface if lost
@@ -79,10 +82,15 @@ pub async fn run() {
                 ..
             } => {
                 if state.mouse_pressed {
-                    state.camera_controller.process_mouse(delta.0, delta.1)
+                    state.m3d_mgr.get_cam_mut().process_mouse(delta.0, delta.1)
                 }
             }
             _ => (),
         }
     });
+}
+
+pub trait Modifier {
+    fn init_state(&self, state: &mut state::State);
+    // todo: add more functions that this needs to interface with
 }

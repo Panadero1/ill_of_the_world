@@ -1,19 +1,23 @@
+use pollster::FutureExt;
 use winit::dpi::PhysicalSize;
 
 use self::{
-    component::Component,
-    model::{Positioner, UIModel, UIVertex, DrawUI},
+    model::{DrawUI, Positioner, Model},
+    vertex::UIVertex,
 };
 
-use super::{model::Vertex, resources::load_model_ui, state::create_render_pipeline, texture};
+use super::{
+    model::vertex::Vertex, resources::load_model_ui, state::create_render_pipeline, texture,
+};
 
 pub mod buttons;
 pub mod component;
 pub mod model;
+pub mod vertex;
 
 pub struct UIManager {
-    pub models: Vec<UIModel>,
-    pub pipeline: wgpu::RenderPipeline,
+    models: Vec<Model>,
+    pipeline: wgpu::RenderPipeline,
     layout: wgpu::BindGroupLayout,
     // bind_groups: HashMap<String, BindGroup>,
 }
@@ -71,7 +75,7 @@ impl UIManager {
         }
     }
 
-    pub async fn add(
+    pub fn add(
         &mut self,
         name: &str,
         texture_file_name: &str,
@@ -90,7 +94,7 @@ impl UIManager {
                 canvas_size,
                 positioner,
             )
-            .await
+            .block_on()
             .unwrap(),
         );
     }
@@ -98,6 +102,13 @@ impl UIManager {
     pub fn update_positions(&mut self, device: &wgpu::Device, canvas_size: PhysicalSize<u32>) {
         for m in &mut self.models {
             m.update_position(device, canvas_size)
+        }
+    }
+
+    pub fn render<'a: 'b, 'b>(&'a self, render_pass: &mut wgpu::RenderPass<'b>) {
+        render_pass.set_pipeline(&self.pipeline);
+        for m in &self.models {
+            render_pass.draw_model_ui(m);
         }
     }
 }

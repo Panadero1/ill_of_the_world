@@ -1,9 +1,7 @@
 use cgmath::{Matrix4, Quaternion, Vector3};
 use wgpu::{BufferAddress, VertexAttribute, VertexFormat::Float32x3, VertexFormat::Float32x4};
 
-use super::model;
-
-pub const NUM_INSTANCES_PER_ROW: u32 = 10;
+use super::{m_3d, model};
 
 pub struct Instance {
     pub position: Vector3<f32>,
@@ -26,7 +24,7 @@ pub struct InstanceRaw {
     normal: [[f32; 3]; 3],
 }
 
-impl model::Vertex for InstanceRaw {
+impl model::vertex::Vertex for InstanceRaw {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         use std::mem;
         wgpu::VertexBufferLayout {

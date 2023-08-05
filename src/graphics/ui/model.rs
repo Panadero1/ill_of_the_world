@@ -1,37 +1,8 @@
-use crate::graphics::{model::Vertex, texture};
-use wgpu::{
-    util::DeviceExt, BindGroup, BufferAddress, VertexFormat::Float32x2, VertexFormat::Float32x3,
-};
+use crate::graphics::texture;
+use wgpu::util::DeviceExt;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 
-#[repr(C)]
-#[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct UIVertex {
-    pub position: [f32; 3],
-    pub tex_coords: [f32; 2],
-}
-
-impl Vertex for UIVertex {
-    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
-        use std::mem;
-        wgpu::VertexBufferLayout {
-            array_stride: mem::size_of::<UIVertex>() as BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: Float32x3,
-                },
-                wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 3]>() as BufferAddress,
-                    shader_location: 1,
-                    format: Float32x2,
-                },
-            ],
-        }
-    }
-}
+use super::vertex::UIVertex;
 
 pub struct UIMaterial {
     pub name: String,
@@ -71,7 +42,7 @@ impl UIMaterial {
 
 pub type Positioner = fn(PhysicalSize<u32>) -> Vec<UIVertex>;
 
-pub struct UIModel {
+pub struct Model {
     name: String,
     bind_group: wgpu::BindGroup,
     vertex_buffer: wgpu::Buffer,
@@ -80,7 +51,7 @@ pub struct UIModel {
     positioner: Positioner,
 }
 
-impl UIModel {
+impl Model {
     const INDICES: &'static [u16] = &[0, 1, 2, 2, 3, 0];
     // top left CCW around to top right (U shape)
     pub fn new(
@@ -117,10 +88,10 @@ impl UIModel {
             }),
             index_buffer: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("ui_index_buffer"),
-                contents: bytemuck::cast_slice(UIModel::INDICES),
+                contents: bytemuck::cast_slice(Model::INDICES),
                 usage: wgpu::BufferUsages::INDEX,
             }),
-            num_elements: 3*2,
+            num_elements: 3 * 2,
             positioner,
             name: name.to_string(),
         }
@@ -139,20 +110,14 @@ impl UIModel {
 
 pub trait DrawUI<'a> {
     // relevant one
-    fn draw_model_ui(
-        &mut self,
-        model: &'a UIModel,
-    );
+    fn draw_model_ui(&mut self, model: &'a Model);
 }
 
 impl<'a, 'b> DrawUI<'b> for wgpu::RenderPass<'a>
 where
     'b: 'a,
 {
-    fn draw_model_ui(
-        &mut self,
-        model: &'a UIModel,
-    ) {
+    fn draw_model_ui(&mut self, model: &'a Model) {
         self.set_bind_group(0, &model.bind_group, &[]);
         self.set_vertex_buffer(0, model.vertex_buffer.slice(..));
         self.set_index_buffer(model.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
@@ -167,7 +132,7 @@ where
 
 /// Should not be called every frame; only every resize!
 /// pos is position of top left corner
-/// 
+///
 pub fn rect_vertices(
     canvas_size: PhysicalSize<u32>,
     size: PhysicalSize<u32>,

@@ -1,14 +1,15 @@
 //! the client serves as the interface with the user
-//! 
+//!
 //! it handles all graphics calls
 //! the server module still interfaces through the client module
 
+use crate::graphics;
+
 use self::state::State;
 
-mod state;
 mod draw;
+mod state;
 
 pub fn run() {
-    let mut state = State::new();
-    state.run();
+    pollster::block_on(graphics::run(Box::new(State::new())));
 }

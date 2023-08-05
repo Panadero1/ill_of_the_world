@@ -4,22 +4,14 @@ pub mod block;
 mod generation;
 
 pub struct World {
-    chunks: Box<[Chunk; 256]>,
+    chunks: Vec<Chunk>,
 }
 
 impl World {
     /// constructs world of empty air tiles
     pub fn empty() -> World {
-        // so ugly
-        World {
-            chunks: Box::new(
-                [Chunk {
-                    columns: [Column {
-                        blocks: [Block::default(); 256],
-                    }; 256],
-                }; 256],
-            ),
-        }
+        let res = World { chunks: vec![Chunk::empty(); 256] };
+        res
     }
 
     /// get an immutable reference to the block at the given position
@@ -46,7 +38,7 @@ impl World {
         todo!()
     }
 
-    /// generates a new world by the 
+    /// generates a new world by the
     pub fn generate() -> World {
         generation::generate()
     }
@@ -57,9 +49,25 @@ pub struct Chunk {
     columns: [Column; 256],
 }
 
+impl Chunk {
+    pub fn empty() -> Chunk {
+        Chunk {
+            columns: [Column::empty(); 256],
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct Column {
     blocks: [Block; 256],
+}
+
+impl Column {
+    pub fn empty() -> Column {
+        Column {
+            blocks: [Block::new(0, 0); 256],
+        }
+    }
 }
 
 pub struct Update {
