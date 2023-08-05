@@ -13,7 +13,7 @@ use self::{
 use super::{
     camera::{Camera, CameraController, CameraUniform, Projection},
     instance::{Instance, InstanceRaw},
-    light::{DrawLight, LightUniform},
+    light::LightUniform,
     model::vertex::Vertex,
     resources::{self, load_model},
     state::create_render_pipeline,
@@ -37,6 +37,7 @@ pub struct M3DManager {
     camera_buf: wgpu::Buffer,
 
     //light
+    // todo: figure this out
     light_pipeline: wgpu::RenderPipeline,
     light_bg: wgpu::BindGroup,
     light_unif: LightUniform,

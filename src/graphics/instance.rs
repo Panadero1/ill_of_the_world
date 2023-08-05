@@ -1,7 +1,7 @@
 use cgmath::{Matrix4, Quaternion, Vector3};
 use wgpu::{BufferAddress, VertexAttribute, VertexFormat::Float32x3, VertexFormat::Float32x4};
 
-use super::{m_3d, model};
+use super::model;
 
 pub struct Instance {
     pub position: Vector3<f32>,

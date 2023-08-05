@@ -1,18 +1,13 @@
 use std::iter;
 
-use cgmath::{InnerSpace, Rotation3, Zero};
-use wgpu::{util::DeviceExt, Backends, InstanceDescriptor};
-use winit::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    event::*,
-    window::Window,
-};
+use wgpu::{Backends, InstanceDescriptor};
+use winit::{dpi::PhysicalSize, event::*, window::Window};
 
 use super::{
     instance::Instance,
     m_3d::M3DManager,
     texture,
-    ui::{self, model::Positioner, UIManager},
+    ui::{model::Positioner, UIManager},
 };
 
 pub struct State {
