@@ -6,7 +6,7 @@ use crate::{
     world::World,
 };
 
-const NUM_INSTANCES_PER_ROW: u32 = 10;
+const NUM_INSTANCES_PER_ROW: u32 = 100;
 const SPACE_BETWEEN: f32 = 3.0;
 
 pub struct State {
@@ -65,6 +65,9 @@ impl graphics::Modifier for State {
             })
             .collect::<Vec<_>>();
 
-        state.add_model_3d_instanced("cube", "cube.obj", instances);
+        // state.add_model_3d_instanced("cube", "cube.obj", instances);
+
+        state.add_model_3d_instanced("minion", "pyramid1.obj", instances);
+        // state.add_model_3d("aa", "cube1.obj");
     }
 }

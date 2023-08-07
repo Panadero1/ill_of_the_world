@@ -2,14 +2,14 @@ use std::ops::Range;
 
 use super::m_3d::model::{Mesh, Model};
 
-pub trait DrawLight<'a> {
-    fn draw_light_mesh(
+pub trait DrawUnlit<'a> {
+    fn draw_unlit_mesh(
         &mut self,
         mesh: &'a Mesh,
         camera_bind_group: &'a wgpu::BindGroup,
         light_bind_group: &'a wgpu::BindGroup,
     );
-    fn draw_light_mesh_instanced(
+    fn draw_unlit_mesh_instanced(
         &mut self,
         mesh: &'a Mesh,
         instances: Range<u32>,
@@ -23,7 +23,7 @@ pub trait DrawLight<'a> {
         camera_bind_group: &'a wgpu::BindGroup,
         light_bind_group: &'a wgpu::BindGroup,
     );
-    fn draw_light_model_instanced(
+    fn draw_unlit_model_instanced(
         &mut self,
         model: &'a Model,
         instances: Range<u32>,
@@ -32,20 +32,20 @@ pub trait DrawLight<'a> {
     );
 }
 
-impl<'a, 'b> DrawLight<'b> for wgpu::RenderPass<'a>
+impl<'a, 'b> DrawUnlit<'b> for wgpu::RenderPass<'a>
 where
     'b: 'a,
 {
-    fn draw_light_mesh(
+    fn draw_unlit_mesh(
         &mut self,
         mesh: &'a Mesh,
         camera_bind_group: &'a wgpu::BindGroup,
         light_bind_group: &'a wgpu::BindGroup,
     ) {
-        self.draw_light_mesh_instanced(mesh, 0..1, camera_bind_group, light_bind_group);
+        self.draw_unlit_mesh_instanced(mesh, 0..1, camera_bind_group, light_bind_group);
     }
 
-    fn draw_light_mesh_instanced(
+    fn draw_unlit_mesh_instanced(
         &mut self,
         mesh: &'a Mesh,
         instances: Range<u32>,
@@ -65,10 +65,10 @@ where
         camera_bind_group: &'a wgpu::BindGroup,
         light_bind_group: &'a wgpu::BindGroup,
     ) {
-        self.draw_light_model_instanced(model, 0..1, camera_bind_group, light_bind_group);
+        self.draw_unlit_model_instanced(model, 0..1, camera_bind_group, light_bind_group);
     }
 
-    fn draw_light_model_instanced(
+    fn draw_unlit_model_instanced(
         &mut self,
         model: &'a Model,
         instances: Range<u32>,
@@ -76,7 +76,7 @@ where
         light_bind_group: &'a wgpu::BindGroup,
     ) {
         for mesh in &model.meshes {
-            self.draw_light_mesh_instanced(
+            self.draw_unlit_mesh_instanced(
                 mesh,
                 instances.clone(),
                 camera_bind_group,

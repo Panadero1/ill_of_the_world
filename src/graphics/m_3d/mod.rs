@@ -13,7 +13,7 @@ use self::{
 use super::{
     camera::{Camera, CameraController, CameraUniform, Projection},
     instance::{Instance, InstanceRaw},
-    light::LightUniform,
+    light::{LightUniform, DrawUnlit},
     model::vertex::Vertex,
     resources::{self, load_model},
     state::create_render_pipeline,
@@ -38,11 +38,11 @@ pub struct M3DManager {
 
     //light
     // todo: figure this out
-    light_pipeline: wgpu::RenderPipeline,
+    unlit_pipeline: wgpu::RenderPipeline,
     light_bg: wgpu::BindGroup,
     light_unif: LightUniform,
     light_buf: wgpu::Buffer,
-    light_model: Model,
+    unlit_model: Model,
 }
 
 impl M3DManager {
@@ -147,7 +147,7 @@ impl M3DManager {
             )
         };
 
-        let light_pipeline = {
+        let unlit_pipeline = {
             let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Light Pipeline Layout"),
                 bind_group_layouts: &[&camera_bind_group_layout, &light_bind_group_layout],
@@ -155,7 +155,7 @@ impl M3DManager {
             });
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("Light Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("light.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(include_str!("unlit.wgsl").into()),
             };
             create_render_pipeline(
                 &device,
@@ -170,7 +170,7 @@ impl M3DManager {
 
         // Todo: make this a constructor...
         let light_unif = LightUniform {
-            position: [2.0, 2.0, 2.0],
+            position: [0.0, 20.0, 0.0],
             _padding: 0,
             color: [1.0, 1.0, 1.0],
             _padding2: 0,
@@ -214,14 +214,14 @@ impl M3DManager {
             label: Some("camera_bind_group"),
         });
 
-        let light_model = load_model("light", "cube.obj", device, queue, &texture_bgl)
+        let unlit_model = load_model("light", "pyramid1.obj", device, queue, &texture_bgl)
             .block_on()
             .unwrap();
 
         M3DManager {
             models: Vec::new(),
             m3d_pipeline,
-            light_pipeline,
+            unlit_pipeline,
             camera_bg,
             projection,
             light_bg,
@@ -232,7 +232,7 @@ impl M3DManager {
             light_unif,
             light_buf,
             texture_bgl,
-            light_model,
+            unlit_model,
         }
     }
 
@@ -276,8 +276,8 @@ impl M3DManager {
     }
 
     pub fn render<'a: 'b, 'b>(&'a self, render_pass: &mut wgpu::RenderPass<'b>) {
-        // render_pass.set_pipeline(&self.light_pipeline);
-        // render_pass.draw_light_model(&self.light_model, &self.camera_bg, &self.light_bg);
+        render_pass.set_pipeline(&self.unlit_pipeline);
+        render_pass.draw_light_model(&self.unlit_model, &self.camera_bg, &self.light_bg);
 
         render_pass.set_pipeline(&self.m3d_pipeline);
 
@@ -318,7 +318,7 @@ impl M3DManager {
         // Update the light (temporary)
         let old_position: cgmath::Vector3<_> = self.light_unif.position.into();
         self.light_unif.position = (cgmath::Quaternion::from_axis_angle(
-            (0.0, 1.0, 0.0).into(),
+            (1.0, 0.0, 0.0).into(),
             cgmath::Deg(60.0) * dt.as_secs_f32(),
         ) * old_position)
             .into();

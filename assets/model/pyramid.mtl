@@ -1,0 +1,9 @@
+newmtl Material.001
+Ns 100
+Ka 1.0 1.0 1.0
+Kd 0.8 0.8 0.8
+Ks 0.5 0.5 0.5
+Ke 0.0 0.0 0.0
+Tr 0.0
+map_Bump cube-diffuse.jpg
+map_Kd pyramid-diffuse.jpg
