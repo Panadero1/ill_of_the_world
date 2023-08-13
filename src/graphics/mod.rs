@@ -1,9 +1,12 @@
+use instant::Duration;
 use wgpu::SurfaceError;
 use winit::{
     event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
     window::WindowBuilder,
 };
+
+use self::state::Graphics;
 
 // Note
 // The rule of thumb for alignment with WGSL structs is field alignments are always powers of 2
@@ -11,26 +14,45 @@ use winit::{
 // The alignment will be bumped up to the next power of 2 being 16
 // This means that you have to be more careful with how you layout your struct
 
-mod camera;
+pub mod camera;
 pub mod instance;
 mod light;
 pub mod m_3d;
 pub mod model;
 pub mod page;
+pub mod pipeline;
 mod resources;
 pub mod state;
 pub mod texture;
 pub mod ui;
 
-pub async fn run(modifier: Box<dyn Modifier>) {
+pub enum PageRes {
+    NoOp,
+    Switch(Box<dyn Page>),
+    Exit,
+}
+
+pub async fn run(mut page: Box<dyn Page>) {
     env_logger::init();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    let mut state = state::State::new(&window).await;
+    let mut gr = Graphics::new(&window).await;
 
-    modifier.init_state(&mut state);
-    let mut last_render_time = instant::Instant::now();
+    page.init(&mut gr);
+
+    fn exit_procedure(page: &mut Box<dyn Page>, control_flow: &mut ControlFlow) {
+        page.on_exit();
+        *control_flow = ControlFlow::Exit;
+    }
+
+    fn process_res(page: &mut Box<dyn Page>, res: PageRes, cf: &mut ControlFlow) {
+        match res {
+            PageRes::NoOp => (),
+            PageRes::Exit => exit_procedure(page, cf),
+            PageRes::Switch(p) => *page = p,
+        }
+    }
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
@@ -38,35 +60,27 @@ pub async fn run(modifier: Box<dyn Modifier>) {
             Event::WindowEvent {
                 ref event,
                 window_id,
-            } if window_id == window.id() && !state.input(event) => match event {
-                WindowEvent::CloseRequested
-                | WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            state: ElementState::Pressed,
-                            virtual_keycode: Some(VirtualKeyCode::Escape),
-                            ..
-                        },
-                    ..
-                } => *control_flow = ControlFlow::Exit,
+            } if window_id == window.id() => match event {
+                WindowEvent::CloseRequested => {
+                    exit_procedure(&mut page, control_flow);
+                }
                 WindowEvent::Resized(physical_size) => {
-                    state.resize(*physical_size);
+                    gr.resize(*physical_size);
                 }
                 WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                    state.resize(**new_inner_size);
+                    gr.resize(**new_inner_size);
                 }
-                _ => (),
+                _ => page.event(&mut gr, event),
             },
             Event::RedrawRequested(window_id) if window_id == window.id() => {
-                let now = instant::Instant::now();
-                let dt = now - last_render_time;
-                last_render_time = now;
-                state.update(dt);
+                let res = page.update(&mut gr);
 
-                match state.render() {
+                process_res(&mut page, res, control_flow);
+
+                match gr.render() {
                     Ok(_) => (),
                     // Reconfigure the surface if lost
-                    Err(SurfaceError::Lost) => state.resize(state.size),
+                    Err(SurfaceError::Lost) => gr.resize(gr.size),
                     // The system is out of memory, we should probably quit
                     Err(SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
                     // All other errors (Outdated, Timeout) should be resolved by the next frame
@@ -77,20 +91,14 @@ pub async fn run(modifier: Box<dyn Modifier>) {
                 // RedrawRequested will only trigger once, unless we manually request it
                 window.request_redraw();
             }
-            Event::DeviceEvent {
-                event: DeviceEvent::MouseMotion { delta },
-                ..
-            } => {
-                if state.mouse_pressed {
-                    state.m3d_mgr.get_cam_mut().process_mouse(delta.0, delta.1)
-                }
-            }
             _ => (),
         }
     });
 }
 
-pub trait Modifier {
-    fn init_state(&self, state: &mut state::State);
-    // todo: add more functions that this needs to interface with
+pub trait Page {
+    fn init(&mut self, gr: &mut Graphics);
+    fn update(&mut self, gr: &mut Graphics) -> PageRes;
+    fn on_exit(&mut self);
+    fn event(&mut self, gr: &mut Graphics, event: &WindowEvent);
 }

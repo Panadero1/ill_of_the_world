@@ -10,7 +10,7 @@ use super::{
     ui::{model::Positioner, UIManager},
 };
 
-pub struct State {
+pub struct Graphics {
     surface: wgpu::Surface,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -18,11 +18,10 @@ pub struct State {
     pub size: PhysicalSize<u32>,
     depth_texture: texture::Texture,
     pub m3d_mgr: M3DManager,
-    ui_mgr: UIManager,
-    pub mouse_pressed: bool,
+    pub ui_mgr: UIManager,
 }
 
-impl State {
+impl Graphics {
     // Tutorial says creating some of the wgpu types requires async code
     pub async fn new(window: &Window) -> Self {
         let size = window.inner_size();
@@ -112,7 +111,6 @@ impl State {
             depth_texture,
             m3d_mgr,
             ui_mgr,
-            mouse_pressed: false,
         }
     }
 
@@ -130,37 +128,36 @@ impl State {
     }
 
     pub fn input(&mut self, event: &WindowEvent) -> bool {
-        match event {
-            WindowEvent::KeyboardInput {
-                input:
-                    KeyboardInput {
-                        state,
-                        virtual_keycode: Some(key),
-                        ..
-                    },
-                ..
-            } => self.m3d_mgr.get_cam_mut().process_keyboard(*key, *state),
-            WindowEvent::MouseWheel { delta, .. } => {
-                self.m3d_mgr.get_cam_mut().process_scroll(delta);
-                true
-            }
-            WindowEvent::MouseInput {
-                button: MouseButton::Left,
-                state,
-                ..
-            } => {
-                self.mouse_pressed = *state == ElementState::Pressed;
-                true
-            }
-            _ => false,
-        }
+        false
+        // match event {
+        //     WindowEvent::KeyboardInput {
+        //         input:
+        //             KeyboardInput {
+        //                 state,
+        //                 virtual_keycode: Some(key),
+        //                 ..
+        //             },
+        //         ..
+        //     } => self.m3d_mgr.get_cam_mut().process_keyboard(*key, *state),
+        //     WindowEvent::MouseWheel { delta, .. } => {
+        //         self.m3d_mgr.get_cam_mut().process_scroll(delta);
+        //         true
+        //     }
+        //     WindowEvent::MouseInput {
+        //         button: MouseButton::Left,
+        //         state,
+        //         ..
+        //     } => {
+        //         self.mouse_pressed = *state == ElementState::Pressed;
+        //         true
+        //     }
+        //     _ => false,
+        // }
     }
 
-    pub fn update(&mut self, dt: instant::Duration) {
+    pub fn update_cam(&mut self, dt: instant::Duration) {
         // todo: fix camera to my liking
         self.m3d_mgr.update_cam(dt, &mut self.queue);
-
-        self.m3d_mgr.update_light(dt, &mut self.queue);
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -245,64 +242,8 @@ impl State {
         self.m3d_mgr
             .add_instanced(name, obj_file_name, &self.device, &self.queue, instances);
     }
-}
 
-pub fn create_render_pipeline(
-    device: &wgpu::Device,
-    layout: &wgpu::PipelineLayout,
-    color_format: wgpu::TextureFormat,
-    depth_format: Option<wgpu::TextureFormat>,
-    vertex_layouts: &[wgpu::VertexBufferLayout],
-    shader: wgpu::ShaderModuleDescriptor,
-    name: &str,
-) -> wgpu::RenderPipeline {
-    let shader = device.create_shader_module(shader);
-
-    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some(&format!("{} Render Pipeline", name)),
-        layout: Some(layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: "vs_main",
-            buffers: vertex_layouts,
-        },
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: "fs_main",
-            targets: &[Some(wgpu::ColorTargetState {
-                format: color_format,
-                blend: Some(wgpu::BlendState::REPLACE),
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
-        }),
-        primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::TriangleList,
-            strip_index_format: None,
-            front_face: wgpu::FrontFace::Ccw,
-            cull_mode: Some(wgpu::Face::Back),
-            // Requires Features::DEPTH_CLIP_CONTROL
-            unclipped_depth: false,
-            // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
-            polygon_mode: wgpu::PolygonMode::Fill,
-            // Requires Features::CONSERVATIVE_RASTERIZATION
-            conservative: false,
-        },
-        depth_stencil: depth_format.map(|format| wgpu::DepthStencilState {
-            format,
-            depth_write_enabled: true,
-            // This function tells us when to discard a pixel
-            depth_compare: wgpu::CompareFunction::Less,
-            stencil: wgpu::StencilState::default(),
-            bias: wgpu::DepthBiasState::default(),
-        }),
-        // todo: look into multisampling
-        multisample: wgpu::MultisampleState {
-            count: 1,
-            mask: !0,
-            // Has to do with Anti-Aliasing
-            // todo: investigate?
-            alpha_to_coverage_enabled: false,
-        },
-        multiview: None,
-    })
+    pub fn position_light(&mut self, pos: [f32; 3]) {
+        self.m3d_mgr.update_light(pos, &mut self.queue);
+    }
 }

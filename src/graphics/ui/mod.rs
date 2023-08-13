@@ -2,12 +2,12 @@ use pollster::FutureExt;
 use winit::dpi::PhysicalSize;
 
 use self::{
-    model::{DrawUI, Positioner, Model},
+    model::{DrawUI, Model, Positioner},
     vertex::UIVertex,
 };
 
 use super::{
-    model::vertex::Vertex, resources::load_model_ui, state::create_render_pipeline, texture,
+    model::vertex::Vertex, pipeline::create_render_pipeline, resources::load_model_ui, texture,
 };
 
 pub mod buttons;

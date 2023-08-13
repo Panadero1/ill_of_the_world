@@ -1,56 +1,52 @@
 use std::f32::consts::FRAC_PI_2;
 
-use cgmath::{Matrix4, Point3, Vector3, Rad, InnerSpace, perspective};
+use cgmath::{perspective, InnerSpace, Matrix4, Point3, Rad, Vector3};
 use instant::Duration;
-use winit::{event::{VirtualKeyCode, ElementState, MouseScrollDelta}, dpi::PhysicalPosition};
+use winit::{
+    dpi::PhysicalPosition,
+    event::{ElementState, MouseScrollDelta, VirtualKeyCode},
+};
 
 #[rustfmt::skip]
-pub const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::new(
+const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::new(
     1.0, 0.0, 0.0, 0.0,
     0.0, 1.0, 0.0, 0.0,
-    0.0, 0.0, 0.5, 0.0,
-    0.0, 0.0, 0.5, 1.0,
+    0.0, 0.0, 0.5, 0.5,
+    0.0, 0.0, 0.0, 1.0,
 );
 
 const SAFE_FRAC_PI_2: f32 = FRAC_PI_2 - 0.0001;
 
 #[derive(Debug)]
 pub struct Camera {
-    pub position: Point3<f32>,
-    yaw: Rad<f32>,
-    pitch: Rad<f32>,
+    pub focus: Point3<f32>,
+    yaw: f32,
+    dist: f32,
+    height: f32,
 }
 
 impl Camera {
-    pub fn new<
-        V: Into<Point3<f32>>,
-        Y: Into<Rad<f32>>,
-        P: Into<Rad<f32>>,
-    >(
-        position: V,
-        yaw: Y,
-        pitch: P,
-    ) -> Self {
+    pub fn new<P: Into<Point3<f32>>>(focus: P, yaw: f32, dist: f32, height: f32) -> Self {
         Self {
-            position: position.into(),
-            yaw: yaw.into(),
-            pitch: pitch.into(),
+            focus: focus.into(),
+            yaw,
+            dist,
+            height,
         }
     }
 
-    pub fn calc_matrix(&self) -> Matrix4<f32> {
-        Matrix4::look_to_rh(
-            self.position,
-            Vector3::new(
-                self.yaw.0.cos(),
-                self.pitch.0.sin(),
-                self.yaw.0.sin(),
-            ).normalize(),
-            Vector3::unit_y(),
+    pub fn position(&self) -> Point3<f32> {
+        Point3::new(
+            self.focus.x + (self.dist * self.yaw.cos()),
+            self.focus.y + (self.height),
+            self.focus.z + (self.dist * self.yaw.sin()),
         )
     }
-}
 
+    pub fn calc_matrix(&self) -> Matrix4<f32> {
+        Matrix4::look_at_rh(self.position(), self.focus, Vector3::unit_y())
+    }
+}
 
 // We need this for rust to store our data correctly for the shaders
 #[repr(C)]
@@ -73,7 +69,7 @@ impl CameraUniform {
     }
 
     pub fn update_view_proj(&mut self, camera: &Camera, projection: &Projection) {
-        self.view_position = camera.position.to_homogeneous().into();
+        self.view_position = camera.focus.to_homogeneous().into();
         self.view_proj = (projection.calc_matrix() * camera.calc_matrix()).into();
     }
 }
@@ -86,13 +82,7 @@ pub struct Projection {
 }
 
 impl Projection {
-    pub fn new<F: Into<Rad<f32>>>(
-        width: u32,
-        height: u32,
-        fovy: F,
-        znear: f32,
-        zfar: f32,
-    ) -> Self {
+    pub fn new<F: Into<Rad<f32>>>(width: u32, height: u32, fovy: F, znear: f32, zfar: f32) -> Self {
         Self {
             aspect: width as f32 / height as f32,
             fovy: fovy.into(),
@@ -123,6 +113,7 @@ pub struct CameraController {
     scroll: f32,
     speed: f32,
     sensitivity: f32,
+    vertical_boost: f32,
 }
 
 impl CameraController {
@@ -139,11 +130,16 @@ impl CameraController {
             scroll: 0.0,
             speed,
             sensitivity,
+            vertical_boost: 5.0,
         }
     }
 
-    pub fn process_keyboard(&mut self, key: VirtualKeyCode, state: ElementState) -> bool{
-        let amount = if state == ElementState::Pressed { 1.0 } else { 0.0 };
+    pub fn process_keyboard(&mut self, key: VirtualKeyCode, state: ElementState) -> bool {
+        let amount = if state == ElementState::Pressed {
+            1.0
+        } else {
+            0.0
+        };
         match key {
             VirtualKeyCode::W | VirtualKeyCode::Up => {
                 self.amount_forward = amount;
@@ -182,10 +178,7 @@ impl CameraController {
         self.scroll = -match delta {
             // I'm assuming a line is about 100 pixels
             MouseScrollDelta::LineDelta(_, scroll) => scroll * 100.0,
-            MouseScrollDelta::PixelDelta(PhysicalPosition {
-                y: scroll,
-                ..
-            }) => *scroll as f32,
+            MouseScrollDelta::PixelDelta(PhysicalPosition { y: scroll, .. }) => *scroll as f32,
         };
     }
 
@@ -193,40 +186,33 @@ impl CameraController {
         let dt = dt.as_secs_f32();
 
         // Move forward/backward and left/right
-        let (yaw_sin, yaw_cos) = camera.yaw.0.sin_cos();
-        let forward = Vector3::new(yaw_cos, 0.0, yaw_sin).normalize();
-        let right = Vector3::new(-yaw_sin, 0.0, yaw_cos).normalize();
-        camera.position += forward * (self.amount_forward - self.amount_backward) * self.speed * dt;
-        camera.position += right * (self.amount_right - self.amount_left) * self.speed * dt;
+        let (yaw_sin, yaw_cos) = camera.yaw.sin_cos();
+        let forward = -Vector3::new(yaw_cos, 0.0, yaw_sin).normalize();
+        let right = -Vector3::new(-yaw_sin, 0.0, yaw_cos).normalize();
+        camera.focus += forward * (self.amount_forward - self.amount_backward) * self.speed * dt;
+        camera.focus += right * (self.amount_right - self.amount_left) * self.speed * dt;
+
+        camera.height += self.vertical_boost * self.rotate_vertical * dt;
+        camera.yaw += self.rotate_horizontal * dt;
 
         // Move in/out (aka. "zoom")
-        // Note: this isn't an actual zoom. The camera's position
-        // changes when zooming. I've added this to make it easier
-        // to get closer to an object you want to focus on.
-        let (pitch_sin, pitch_cos) = camera.pitch.0.sin_cos();
-        let scrollward = Vector3::new(pitch_cos * yaw_cos, pitch_sin, pitch_cos * yaw_sin).normalize();
-        camera.position += scrollward * self.scroll * self.speed * self.sensitivity * dt;
+        // let pitch = (camera.dist / camera.height).atan();
+
+        // camera.height += pitch.sin() * self.scroll * self.speed * self.sensitivity * dt;
+        camera.dist += self.scroll * self.speed * self.sensitivity * self.vertical_boost * dt;
+
+        // camera.height = camera.height.max(0.0);
+        camera.dist = camera.dist.max(1.0);
+
         self.scroll = 0.0;
 
-        // Move up/down. Since we don't use roll, we can just
-        // modify the y coordinate directly.
-        camera.position.y += (self.amount_up - self.amount_down) * self.speed * dt;
-
-        // Rotate
-        camera.yaw += Rad(self.rotate_horizontal) * self.sensitivity * dt;
-        camera.pitch += Rad(-self.rotate_vertical) * self.sensitivity * dt;
+        // Move up/down
+        camera.focus.y += (self.amount_up - self.amount_down) * self.speed * dt;
 
         // If process_mouse isn't called every frame, these values
         // will not get set to zero, and the camera will rotate
         // when moving in a non cardinal direction.
         self.rotate_horizontal = 0.0;
         self.rotate_vertical = 0.0;
-
-        // Keep the camera's angle from going too high/low.
-        if camera.pitch < -Rad(SAFE_FRAC_PI_2) {
-            camera.pitch = -Rad(SAFE_FRAC_PI_2);
-        } else if camera.pitch > Rad(SAFE_FRAC_PI_2) {
-            camera.pitch = Rad(SAFE_FRAC_PI_2);
-        }
     }
 }

@@ -1,29 +1,45 @@
-use cgmath::{Rotation3, Zero, InnerSpace};
-use winit::dpi::{PhysicalPosition, PhysicalSize};
+use std::time::Instant;
+
+use cgmath::{InnerSpace, Rotation3, Zero};
+use instant::Duration;
+use winit::{
+    dpi::{PhysicalPosition, PhysicalSize},
+    event::{DeviceEvent, ElementState, KeyboardInput, MouseButton, VirtualKeyCode, WindowEvent},
+};
 
 use crate::{
-    graphics::{self, ui, instance::Instance},
+    graphics::{self, instance::Instance, state::Graphics, ui, PageRes},
     world::World,
 };
 
-const NUM_INSTANCES_PER_ROW: u32 = 100;
+const NUM_INSTANCES_PER_ROW: u32 = 10;
 const SPACE_BETWEEN: f32 = 3.0;
 
 pub struct State {
     world: World,
+    start: Instant,
+    last_frame: Instant,
+    exit: bool,
+    last_cur_pos: PhysicalPosition<f64>,
+    is_clicking: bool,
 }
 
 impl State {
     pub fn new() -> State {
         State {
             world: World::empty(),
+            start: Instant::now(),
+            last_frame: Instant::now(),
+            exit: false,
+            last_cur_pos: (0.0, 0.0).into(),
+            is_clicking: false,
         }
     }
 }
 
-impl graphics::Modifier for State {
-    fn init_state(&self, state: &mut graphics::state::State) {
-        state.add_model_ui("BR corner", "happy-tree.png", |canvas_size| {
+impl graphics::Page for State {
+    fn init(&mut self, gr: &mut Graphics) {
+        gr.add_model_ui("BR corner", "happy-tree.png", |canvas_size| {
             ui::model::rect_vertices(
                 canvas_size,
                 PhysicalSize::new(200, 200),
@@ -34,7 +50,7 @@ impl graphics::Modifier for State {
             )
         });
 
-        state.add_model_ui("TL corner", "happy-tree.png", |canvas_size| {
+        gr.add_model_ui("TL corner", "happy-tree.png", |canvas_size| {
             ui::model::rect_vertices(
                 canvas_size,
                 PhysicalSize::new(200, 200),
@@ -67,7 +83,85 @@ impl graphics::Modifier for State {
 
         // state.add_model_3d_instanced("cube", "cube.obj", instances);
 
-        state.add_model_3d_instanced("minion", "pyramid1.obj", instances);
+        gr.add_model_3d_instanced("minion", "minion.obj", instances);
         // state.add_model_3d("aa", "cube1.obj");
+    }
+
+    fn update(&mut self, gr: &mut Graphics) -> PageRes {
+        let now = Instant::now();
+        let dt = now - self.last_frame;
+        self.last_frame = now;
+
+        let light_pos = [(now - self.start).as_secs_f32().sin() * 10.0, 10.0, 0.0];
+
+        gr.position_light(light_pos);
+
+        gr.update_cam(dt);
+
+        if self.exit {
+            PageRes::Exit
+        } else {
+            PageRes::NoOp
+        }
+    }
+
+    fn on_exit(&mut self) {}
+
+    fn event(&mut self, gr: &mut Graphics, event: &WindowEvent) {
+        match event {
+            WindowEvent::KeyboardInput { input, .. } => self.match_keys(input, gr),
+            WindowEvent::CursorMoved { position, .. } => self.process_mouse(position, gr),
+            WindowEvent::MouseInput {
+                state,
+                button: MouseButton::Left,
+                ..
+            } => self.is_clicking = *state == ElementState::Pressed,
+            WindowEvent::MouseWheel { delta, .. } => gr.m3d_mgr.get_cam_mut().process_scroll(delta),
+            _ => (),
+        }
+    }
+}
+
+impl State {
+    fn match_keys(&mut self, input: &KeyboardInput, gr: &mut Graphics) {
+        match input {
+            KeyboardInput {
+                state: ElementState::Pressed,
+                virtual_keycode: Some(key),
+                ..
+            } => match key {
+                // key pressed
+                VirtualKeyCode::Escape => self.exit = true,
+                key => {
+                    gr.m3d_mgr
+                        .get_cam_mut()
+                        .process_keyboard(*key, ElementState::Pressed);
+                }
+                _ => (),
+            },
+            KeyboardInput {
+                state: ElementState::Released,
+                virtual_keycode: Some(key),
+                ..
+            } => match key {
+                // key released
+                key => {
+                    gr.m3d_mgr
+                        .get_cam_mut()
+                        .process_keyboard(*key, ElementState::Released);
+                }
+                _ => (),
+            },
+            _ => (),
+        }
+    }
+
+    fn process_mouse(&mut self, position: &PhysicalPosition<f64>, gr: &mut Graphics) {
+        let dx = position.x - self.last_cur_pos.x;
+        let dy = position.y - self.last_cur_pos.y;
+        self.last_cur_pos = *position;
+        if self.is_clicking {
+            gr.m3d_mgr.get_cam_mut().process_mouse(dx, dy);
+        }
     }
 }
