@@ -1,5 +1,6 @@
 use super::World;
 
 pub fn generate() -> World {
-    todo!()
+    // todo
+    World::empty()
 }

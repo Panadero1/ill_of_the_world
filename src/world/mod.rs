@@ -1,7 +1,14 @@
 use block::Block;
 
+use self::position::Position;
+
 pub mod block;
+pub mod position;
 mod generation;
+
+const SINGLE: usize = 256;
+const DOUBLE: usize = 256 * 256;
+const TRIPLE: usize = 256 * 256 * 256;
 
 pub struct World {
     /// A collection of blocks all together.
@@ -11,10 +18,6 @@ pub struct World {
     /// - within each column are 256 sequentially stored blocks
     blocks: Vec<Block>,
 }
-
-const SINGLE: usize = 256;
-const DOUBLE: usize = 256 * 256;
-const TRIPLE: usize = 256 * 256 * 256;
 
 impl World {
     /// constructs world of empty air tiles
@@ -27,12 +30,12 @@ impl World {
 
     /// get an immutable reference to the block at the given position
     pub fn get_block(&self, pos: Position) -> &Block {
-        &self.blocks[pos.index]
+        &self.blocks[pos]
     }
 
     /// get a mutable reference to the block at the given position
     pub fn get_block_mut(&mut self, pos: Position) -> &mut Block {
-        &mut self.blocks[pos.index]
+        &mut self.blocks[pos]
     }
 
     /// update the world given this specific update
@@ -54,45 +57,5 @@ impl World {
 pub struct Update {
     pos: Position,
     new_kind: u8,
-}
-
-pub struct Position {
-    index: usize,
-}
-
-impl Position {
-    pub fn new(index: usize) -> Position {
-        Position { index }
-    }
-
-    /// from x,y,z coordinates
-    ///
-    /// # Arguments
-    /// * `x` - x position (east-west)
-    /// * `y` - y position (height)
-    /// * `z` - z position (north-south)
-    pub fn from_xyz(x: i16, y: u8, z: i16) -> Position {
-        let x = x.rem_euclid(256) as u8;
-        let z = z.rem_euclid(256) as u8;
-
-        let chunk = ((x / 16) | (z & 0b11110000)) as usize;
-        let column = ((x % 16) | (16 * (z % 16))) as usize;
-        let block = y as usize;
-
-        Position {
-            index: chunk * DOUBLE + column * SINGLE + block,
-        }
-    }
-
-    pub fn chunk(&self) -> u8 {
-        (self.index / DOUBLE) as u8
-    }
-
-    pub fn column(&self) -> u8 {
-        ((self.index / SINGLE) % SINGLE) as u8
-    }
-
-    pub fn block(&self) -> u8 {
-        (self.index % SINGLE) as u8
-    }
+    new_dir: u8
 }

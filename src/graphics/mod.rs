@@ -1,8 +1,7 @@
-use instant::Duration;
 use wgpu::SurfaceError;
 use winit::{
-    event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
-    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
 
@@ -19,7 +18,6 @@ pub mod instance;
 mod light;
 pub mod m_3d;
 pub mod model;
-pub mod page;
 pub mod pipeline;
 mod resources;
 pub mod state;
