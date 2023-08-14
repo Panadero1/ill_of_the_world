@@ -1,10 +1,8 @@
-use std::f32::consts::FRAC_PI_2;
-
 use cgmath::{perspective, InnerSpace, Matrix4, Point3, Rad, Vector3};
 use instant::Duration;
 use winit::{
     dpi::PhysicalPosition,
-    event::{ElementState, MouseScrollDelta, VirtualKeyCode},
+    event::MouseScrollDelta,
 };
 
 #[rustfmt::skip]
@@ -14,8 +12,6 @@ const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::new(
     0.0, 0.0, 0.5, 0.5,
     0.0, 0.0, 0.0, 1.0,
 );
-
-const SAFE_FRAC_PI_2: f32 = FRAC_PI_2 - 0.0001;
 
 #[derive(Debug)]
 pub struct Camera {
@@ -100,6 +96,9 @@ impl Projection {
     }
 }
 
+const VERTICAL_BOOST: f32 = 5.0;
+const MIN_CAMERA_DIST: f32 = 5.0;
+
 #[derive(Debug)]
 pub struct CameraController {
     amount_left: f32,
@@ -110,10 +109,9 @@ pub struct CameraController {
     amount_down: f32,
     rotate_horizontal: f32,
     rotate_vertical: f32,
-    scroll: f32,
+    zoom_change: f32,
     speed: f32,
     sensitivity: f32,
-    vertical_boost: f32,
 }
 
 impl CameraController {
@@ -127,57 +125,45 @@ impl CameraController {
             amount_down: 0.0,
             rotate_horizontal: 0.0,
             rotate_vertical: 0.0,
-            scroll: 0.0,
+            zoom_change: 0.0,
             speed,
             sensitivity,
-            vertical_boost: 5.0,
         }
     }
 
-    pub fn process_keyboard(&mut self, key: VirtualKeyCode, state: ElementState) -> bool {
-        let amount = if state == ElementState::Pressed {
-            1.0
-        } else {
-            0.0
-        };
-        match key {
-            VirtualKeyCode::W | VirtualKeyCode::Up => {
-                self.amount_forward = amount;
-                true
-            }
-            VirtualKeyCode::S | VirtualKeyCode::Down => {
-                self.amount_backward = amount;
-                true
-            }
-            VirtualKeyCode::A | VirtualKeyCode::Left => {
-                self.amount_left = amount;
-                true
-            }
-            VirtualKeyCode::D | VirtualKeyCode::Right => {
-                self.amount_right = amount;
-                true
-            }
-            VirtualKeyCode::Space => {
-                self.amount_up = amount;
-                true
-            }
-            VirtualKeyCode::LShift => {
-                self.amount_down = amount;
-                true
-            }
-            _ => false,
-        }
+    pub fn forward(&mut self, amount: f32) {
+        self.amount_forward = amount;
     }
 
-    pub fn process_mouse(&mut self, mouse_dx: f64, mouse_dy: f64) {
-        self.rotate_horizontal = mouse_dx as f32;
-        self.rotate_vertical = mouse_dy as f32;
+    pub fn left(&mut self, amount: f32) {
+        self.amount_left = amount;
     }
 
-    pub fn process_scroll(&mut self, delta: &MouseScrollDelta) {
-        self.scroll = -match delta {
+    pub fn right(&mut self, amount: f32) {
+        self.amount_right = amount;
+    }
+
+    pub fn back(&mut self, amount: f32) {
+        self.amount_backward = amount;
+    }
+
+    pub fn up(&mut self, amount: f32) {
+        self.amount_up = amount;
+    }
+
+    pub fn down(&mut self, amount: f32) {
+        self.amount_down = amount;
+    }
+
+    pub fn turn(&mut self, dx: f64, dy: f64) {
+        self.rotate_horizontal = dx as f32;
+        self.rotate_vertical = dy as f32;
+    }
+
+    pub fn zoom(&mut self, delta: &MouseScrollDelta) {
+        self.zoom_change = -match delta {
             // I'm assuming a line is about 100 pixels
-            MouseScrollDelta::LineDelta(_, scroll) => scroll * 100.0,
+            MouseScrollDelta::LineDelta(_, z) => z * 100.0,
             MouseScrollDelta::PixelDelta(PhysicalPosition { y: scroll, .. }) => *scroll as f32,
         };
     }
@@ -192,19 +178,20 @@ impl CameraController {
         camera.focus += forward * (self.amount_forward - self.amount_backward) * self.speed * dt;
         camera.focus += right * (self.amount_right - self.amount_left) * self.speed * dt;
 
-        camera.height += self.vertical_boost * self.rotate_vertical * dt;
+        camera.height += VERTICAL_BOOST * self.rotate_vertical * dt;
         camera.yaw += self.rotate_horizontal * dt;
 
         // Move in/out (aka. "zoom")
         // let pitch = (camera.dist / camera.height).atan();
 
         // camera.height += pitch.sin() * self.scroll * self.speed * self.sensitivity * dt;
-        camera.dist += self.scroll * self.speed * self.sensitivity * self.vertical_boost * dt;
+        let h_d_ratio = camera.height / camera.dist;
+        let dist_change = self.zoom_change * self.speed * self.sensitivity * VERTICAL_BOOST * dt;
+        camera.dist += dist_change;
+        camera.height += dist_change * h_d_ratio;
 
         // camera.height = camera.height.max(0.0);
-        camera.dist = camera.dist.max(1.0);
-
-        self.scroll = 0.0;
+        camera.dist = camera.dist.max(MIN_CAMERA_DIST);
 
         // Move up/down
         camera.focus.y += (self.amount_up - self.amount_down) * self.speed * dt;
@@ -214,5 +201,7 @@ impl CameraController {
         // when moving in a non cardinal direction.
         self.rotate_horizontal = 0.0;
         self.rotate_vertical = 0.0;
+
+        self.zoom_change = 0.0;
     }
 }

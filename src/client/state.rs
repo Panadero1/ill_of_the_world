@@ -1,10 +1,9 @@
 use std::time::Instant;
 
 use cgmath::{InnerSpace, Rotation3, Zero};
-use instant::Duration;
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
-    event::{DeviceEvent, ElementState, KeyboardInput, MouseButton, VirtualKeyCode, WindowEvent},
+    event::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode, WindowEvent},
 };
 
 use crate::{
@@ -116,7 +115,10 @@ impl graphics::Page for State {
                 button: MouseButton::Left,
                 ..
             } => self.is_clicking = *state == ElementState::Pressed,
-            WindowEvent::MouseWheel { delta, .. } => gr.m3d_mgr.get_cam_mut().process_scroll(delta),
+            WindowEvent::MouseWheel { delta, .. } => gr.m3d_mgr.camera_control().zoom(delta),
+            WindowEvent::ModifiersChanged(m) => {
+                gr.camera_control().down(if m.shift() { 1.0 } else { 0.0 })
+            }
             _ => (),
         }
     }
@@ -126,32 +128,27 @@ impl State {
     fn match_keys(&mut self, input: &KeyboardInput, gr: &mut Graphics) {
         match input {
             KeyboardInput {
-                state: ElementState::Pressed,
+                state,
                 virtual_keycode: Some(key),
                 ..
-            } => match key {
-                // key pressed
-                VirtualKeyCode::Escape => self.exit = true,
-                key => {
-                    gr.m3d_mgr
-                        .get_cam_mut()
-                        .process_keyboard(*key, ElementState::Pressed);
+            } => {
+                let amount = if *state == ElementState::Pressed {
+                    1.0
+                } else {
+                    0.0
+                };
+
+                match key {
+                    // key pressed
+                    VirtualKeyCode::Escape if *state == ElementState::Released => self.exit = true,
+                    VirtualKeyCode::W => gr.camera_control().forward(amount),
+                    VirtualKeyCode::A => gr.camera_control().left(amount),
+                    VirtualKeyCode::S => gr.camera_control().back(amount),
+                    VirtualKeyCode::D => gr.camera_control().right(amount),
+                    VirtualKeyCode::Space => gr.camera_control().up(amount),
+                    _ => (),
                 }
-                _ => (),
-            },
-            KeyboardInput {
-                state: ElementState::Released,
-                virtual_keycode: Some(key),
-                ..
-            } => match key {
-                // key released
-                key => {
-                    gr.m3d_mgr
-                        .get_cam_mut()
-                        .process_keyboard(*key, ElementState::Released);
-                }
-                _ => (),
-            },
+            }
             _ => (),
         }
     }
@@ -161,7 +158,7 @@ impl State {
         let dy = position.y - self.last_cur_pos.y;
         self.last_cur_pos = *position;
         if self.is_clicking {
-            gr.m3d_mgr.get_cam_mut().process_mouse(dx, dy);
+            gr.m3d_mgr.camera_control().turn(dx, dy);
         }
     }
 }
