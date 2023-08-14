@@ -1,19 +1,22 @@
-use crate::world::World;
+use std::{cell::UnsafeCell, sync::Arc};
+
+use crate::{
+    util::thread::ThreadPool,
+    world::World,
+};
 
 /// indices for safe multithreaded chunk updating
 ///
-/// the pattern created gives a tiling of the chunks where all 
+/// the pattern created gives a tiling of the chunks where all
 /// all indices in one subarray may be updated in an asynch fashion
-/// 
-/// the whole world would be updated in four passes, then
+///
+/// the whole world would be updated in four passes, each of which are safe
 ///
 /// thread safety is guaranteed since any block update chunk spillover
 /// can only spill over to directly adjacent chunks.
-/// 
-/// to avoid 
 ///
-/// from this property, we construct a grid of possible concurrent updates
-const chunk_thread_indices: [[usize; 64]; 4] = [
+/// the following set of indices have been verified
+const CHUNK_THREAD_INDICES: [[u8; 64]; 4] = [
     [
         000, 002, 004, 006, 008, 010, 012, 014, 032, 034, 036, 038, 040, 042, 044, 046, 064, 066,
         068, 070, 072, 074, 076, 078, 096, 098, 100, 102, 104, 106, 108, 110, 128, 130, 132, 134,
@@ -40,20 +43,22 @@ const chunk_thread_indices: [[usize; 64]; 4] = [
     ],
 ];
 
-// TODO!!!! NEED TO MAKE IT FOUR PASSES INSTEAD OF TWO (BECAUSE OF CORNERS OF INTERSECTION)
-
 struct State {
     world: World,
+    thread_pool: ThreadPool,
 }
 
 impl State {
-    pub fn new() -> State {
+    pub fn new(threads: usize) -> State {
         State {
             world: World::generate(),
+            thread_pool: ThreadPool::new(threads),
         }
     }
 
     pub fn update(&mut self) {
         
+        
+        // todo: get multithreaded updates working
     }
 }

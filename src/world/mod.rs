@@ -4,28 +4,35 @@ pub mod block;
 mod generation;
 
 pub struct World {
-    chunks: Vec<Chunk>,
+    /// A collection of blocks all together.
+    /// These are stored in chunk-column-block order
+    /// - there are 256 chunks stored sequentially
+    /// - within each chunk are 256 sequentially stored columns
+    /// - within each column are 256 sequentially stored blocks
+    blocks: Vec<Block>,
 }
+
+const SINGLE: usize = 256;
+const DOUBLE: usize = 256 * 256;
+const TRIPLE: usize = 256 * 256 * 256;
 
 impl World {
     /// constructs world of empty air tiles
     pub fn empty() -> World {
-        let res = World { chunks: vec![Chunk::empty(); 256] };
+        let res = World {
+            blocks: vec![Block::default(); TRIPLE],
+        };
         res
     }
 
     /// get an immutable reference to the block at the given position
     pub fn get_block(&self, pos: Position) -> &Block {
-        &self.chunks[pos.chunk as usize] // Chunk
-            .columns[pos.column as usize] // Column
-            .blocks[pos.height as usize] // Block
+        &self.blocks[pos.index]
     }
 
     /// get a mutable reference to the block at the given position
     pub fn get_block_mut(&mut self, pos: Position) -> &mut Block {
-        &mut self.chunks[pos.chunk as usize] // Chunk
-            .columns[pos.column as usize] // Column
-            .blocks[pos.height as usize] // Block
+        &mut self.blocks[pos.index]
     }
 
     /// update the world given this specific update
@@ -38,35 +45,9 @@ impl World {
         todo!()
     }
 
-    /// generates a new world by the
+    /// generates a new world by the generation algorithm
     pub fn generate() -> World {
         generation::generate()
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct Chunk {
-    columns: [Column; 256],
-}
-
-impl Chunk {
-    pub fn empty() -> Chunk {
-        Chunk {
-            columns: [Column::empty(); 256],
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct Column {
-    blocks: [Block; 256],
-}
-
-impl Column {
-    pub fn empty() -> Column {
-        Column {
-            blocks: [Block::new(0, 0); 256],
-        }
     }
 }
 
@@ -76,40 +57,42 @@ pub struct Update {
 }
 
 pub struct Position {
-    chunk: u8,
-    column: u8,
-    height: u8,
+    index: usize,
 }
 
 impl Position {
-    pub fn new(chunk: u8, column: u8, height: u8) -> Position {
-        Position {
-            chunk,
-            column,
-            height,
-        }
+    pub fn new(index: usize) -> Position {
+        Position { index }
     }
 
     /// from x,y,z coordinates
     ///
     /// # Arguments
     /// * `x` - x position (east-west)
-    /// * `y` - y position (north-south)
-    /// * `z` - z position (height)
-    pub fn from_xyz(x: u8, y: u8, z: u8) -> Position {
+    /// * `y` - y position (height)
+    /// * `z` - z position (north-south)
+    pub fn from_xyz(x: i16, y: u8, z: i16) -> Position {
+        let x = x.rem_euclid(256) as u8;
+        let z = z.rem_euclid(256) as u8;
+
+        let chunk = ((x / 16) | (z & 0b11110000)) as usize;
+        let column = ((x % 16) | (16 * (z % 16))) as usize;
+        let block = y as usize;
+
         Position {
-            chunk: (x / 16) + ((y / 16) * 16),
-            column: (x % 16) + ((y % 16) * 16),
-            height: z,
+            index: chunk * DOUBLE + column * SINGLE + block,
         }
     }
 
-    /// to x,y,z coordinates
-    pub fn to_xyz(&self) -> (u8, u8, u8) {
-        (
-            ((self.chunk % 16) * 16) + self.column % 16,
-            ((self.chunk / 16) * 16) + self.column / 16,
-            self.height,
-        )
+    pub fn chunk(&self) -> u8 {
+        (self.index / DOUBLE) as u8
+    }
+
+    pub fn column(&self) -> u8 {
+        ((self.index / SINGLE) % SINGLE) as u8
+    }
+
+    pub fn block(&self) -> u8 {
+        (self.index % SINGLE) as u8
     }
 }
