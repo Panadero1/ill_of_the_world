@@ -7,7 +7,6 @@ use crate::graphics;
 
 use self::state::State;
 
-pub mod camera;
 mod draw;
 mod state;
 

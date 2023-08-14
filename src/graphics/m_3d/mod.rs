@@ -298,8 +298,7 @@ impl M3DManager {
         self.projection.resize(new_size.width, new_size.height);
     }
 
-    /// temporary fix maybe. IDK
-    pub fn get_cam_mut(&mut self) -> &mut CameraController {
+    pub fn camera_control(&mut self) -> &mut CameraController {
         &mut self.camera_control
     }
 

@@ -1,9 +1,10 @@
 use std::iter;
 
 use wgpu::{Backends, InstanceDescriptor};
-use winit::{dpi::PhysicalSize, event::*, window::Window};
+use winit::{dpi::PhysicalSize, window::Window};
 
 use super::{
+    camera::CameraController,
     instance::Instance,
     m_3d::M3DManager,
     texture,
@@ -127,34 +128,6 @@ impl Graphics {
         }
     }
 
-    pub fn input(&mut self, event: &WindowEvent) -> bool {
-        false
-        // match event {
-        //     WindowEvent::KeyboardInput {
-        //         input:
-        //             KeyboardInput {
-        //                 state,
-        //                 virtual_keycode: Some(key),
-        //                 ..
-        //             },
-        //         ..
-        //     } => self.m3d_mgr.get_cam_mut().process_keyboard(*key, *state),
-        //     WindowEvent::MouseWheel { delta, .. } => {
-        //         self.m3d_mgr.get_cam_mut().process_scroll(delta);
-        //         true
-        //     }
-        //     WindowEvent::MouseInput {
-        //         button: MouseButton::Left,
-        //         state,
-        //         ..
-        //     } => {
-        //         self.mouse_pressed = *state == ElementState::Pressed;
-        //         true
-        //     }
-        //     _ => false,
-        // }
-    }
-
     pub fn update_cam(&mut self, dt: instant::Duration) {
         // todo: fix camera to my liking
         self.m3d_mgr.update_cam(dt, &mut self.queue);
@@ -245,5 +218,9 @@ impl Graphics {
 
     pub fn position_light(&mut self, pos: [f32; 3]) {
         self.m3d_mgr.update_light(pos, &mut self.queue);
+    }
+
+    pub fn camera_control(&mut self) -> &mut CameraController {
+        self.m3d_mgr.camera_control()
     }
 }
