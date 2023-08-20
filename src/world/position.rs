@@ -20,8 +20,9 @@ pub fn from_ccb(chunk: u8, column: u8, block: u8) -> Position {
 /// * `y` - y position (height)
 /// * `z` - z position (north-south)
 #[inline]
-pub fn from_xyz(x: i16, y: u8, z: i16) -> Position {
+pub fn from_xyz(x: i16, y: i16, z: i16) -> Position {
     let x = x.rem_euclid(256) as u8;
+    let y = y.clamp(0, 255);
     let z = z.rem_euclid(256) as u8;
 
     let chunk = ((x / 16) | (z & 0b11110000)) as usize;

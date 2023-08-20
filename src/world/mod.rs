@@ -1,10 +1,10 @@
 use block::Block;
 
-use self::position::Position;
+use self::{block::BlockUpdate, position::Position};
 
 pub mod block;
-pub mod position;
 mod generation;
+pub mod position;
 
 const SINGLE: usize = 256;
 const DOUBLE: usize = 256 * 256;
@@ -20,7 +20,7 @@ pub struct World {
 }
 
 impl World {
-    /// constructs world of empty air tiles
+    /// constructs world of all zeros
     pub fn empty() -> World {
         let res = World {
             blocks: vec![Block::default(); TRIPLE],
@@ -39,8 +39,8 @@ impl World {
     }
 
     /// update the world given this specific update
-    pub fn process_update(&mut self, update: Update) {
-        self.get_block_mut(update.pos).kind = update.new_kind;
+    pub fn process_update(&mut self, update: BlockUpdate) {
+        self.get_block_mut(update.pos).data = update.new_data;
     }
 
     /// simulates one "tick" at the given chunk
@@ -54,8 +54,4 @@ impl World {
     }
 }
 
-pub struct Update {
-    pos: Position,
-    new_kind: u8,
-    new_dir: u8
-}
+pub struct WorldUpdate {}

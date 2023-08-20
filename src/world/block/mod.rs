@@ -1,3 +1,5 @@
+use super::position::Position;
+
 // blocks
 // NOTE: these properties are not comprehensive; see block behaviors for more details
 /// default block, represents absence
@@ -53,13 +55,16 @@ pub struct Block {
     /// the type and rotation of the block
     /// the four least significant bits (2^0 through 2^3) represent the type of block
     /// the four most significant bits (2^4 through 2^7) represent its rotation
-    pub kind: u8,
-    /// the structural state and internal tracking for the block
-    pub state: u8,
+    pub data: u8,
 }
 
 impl Block {
-    pub fn new(kind: u8, state: u8) -> Block {
-        Block { kind, state }
+    pub fn new(data: u8) -> Block {
+        Block { data }
     }
+}
+
+pub struct BlockUpdate {
+    pub pos: Position,
+    pub new_data: u8,
 }
