@@ -1,13 +1,16 @@
 use std::{
+    io,
+    net::{ToSocketAddrs, SocketAddr},
     sync::mpsc::{self, channel, Receiver, Sender, TryRecvError},
     thread::{self, JoinHandle},
 };
 
 use crate::world::{position, World, WorldUpdate};
 
-use self::networking::ClientHandler;
+use self::network::ClientManagerHandle;
 
-mod networking;
+mod network;
+mod connection;
 
 pub struct ServerHandle {
     send: Sender<()>,
@@ -15,17 +18,17 @@ pub struct ServerHandle {
 }
 
 impl ServerHandle {
-    pub fn start() -> ServerHandle {
+    pub fn start(addr: SocketAddr) -> io::Result<ServerHandle> {
         let (send, recv) = channel();
 
-        let server = Server::new();
+        let server = Server::new(addr)?;
 
         let jh = thread::spawn(move || server.run(recv));
 
-        ServerHandle { send, jh: Some(jh) }
+        Ok(ServerHandle { send, jh: Some(jh) })
     }
 
-    pub fn stop(&mut self) {
+    pub fn stop(mut self) {
         if let Some(jh) = self.jh.take() {
             self.send.send(()).expect("could not tell server to stop");
             jh.join().expect("could not stop server thread");
@@ -39,16 +42,18 @@ struct Server {
     /// for all internally tracked data. Doesn't need to be sent
     /// out so it's stored separately for cache efficiency
     states: World,
-    client_handler: ClientHandler,
+    client_handler: ClientManagerHandle,
 }
 
 impl Server {
-    fn new() -> Server {
-        Server {
+    fn new(addr: SocketAddr) -> io::Result<Server> {
+        let client_handler = ClientManagerHandle::start(addr)?;
+
+        Ok(Server {
             blocks: World::generate(),
             states: World::empty(),
-            client_handler: ClientHandler::new(),
-        }
+            client_handler,
+        })
     }
 
     fn process_update(&mut self, update: WorldUpdate, updates_to_send: &mut Vec<WorldUpdate>) {
@@ -64,9 +69,6 @@ impl Server {
         // loop until told to stop
         while let Err(TryRecvError::Empty) = recv.try_recv() {
             updates_to_send.clear();
-            // 1. take in client requests from separate client handlers
-            // accept new connections
-            self.client_handler.update();
             let updates = self.client_handler.get_updates();
 
             // 2. update world based on requests
