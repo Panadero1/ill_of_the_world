@@ -1,27 +1,39 @@
-use std::{ptr, net::TcpStream};
-
+use std::{net::TcpStream, ptr};
+use std::io::Read;
 
 enum StreamReadState {
     None,
-    BlockUpdate(Option<u8>),
+    BlockUpdate,
     PlayerPos,
 }
+
+const READ_BUF_SIZE: usize = 1024;
 
 pub struct ClientConnection {
     stream: TcpStream,
     state: StreamReadState,
     par_buf: [u8; 256],
     pb_len: usize,
+    // todo: add updates mutex thing
 }
 
 impl ClientConnection {
-    fn new(stream: TcpStream) -> ClientConnection {
+    pub fn new(stream: TcpStream) -> ClientConnection {
         ClientConnection {
             stream,
             state: StreamReadState::None,
             par_buf: [0; 256],
             pb_len: 0,
         }
+    }
+
+    pub fn read_from_stream(&mut self) {
+        let mut buf = [0; READ_BUF_SIZE];
+
+        // todo: proper error handling here
+        self.stream.read(&mut buf).expect("couldn't read bytes");
+
+        self.read_bytes(&buf, READ_BUF_SIZE);
     }
 
     pub fn read_bytes(&mut self, bytes: &[u8], len: usize) {
@@ -39,11 +51,7 @@ impl ClientConnection {
                     self.switch_state(byte[0]);
                     amt_read += 1;
                 }
-                StreamReadState::BlockUpdate(num_left) => {
-                    if let Some(num_left) = num_left {
-                    } else {
-                    }
-                }
+                StreamReadState::BlockUpdate => {}
                 StreamReadState::PlayerPos => {}
             }
         }

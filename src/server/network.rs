@@ -3,7 +3,7 @@ use std::{
     net::{TcpListener, TcpStream, ToSocketAddrs, SocketAddr},
     ptr,
     sync::{
-        mpsc::{self, Sender, Receiver},
+        mpsc::{self, Sender, Receiver, TryRecvError},
         Arc, Mutex,
     },
     task::{RawWaker, Waker},
@@ -33,14 +33,14 @@ impl ClientManagerHandle {
         let uc = updates.clone();
 
         let jh = thread::spawn(move || {
-            let mut mgr = ClientManager::new(addr, uc).unwrap();
+            let mut mgr = ClientManager::new(addr, uc, recv).unwrap();
             mgr.run();
         });
 
         Ok(ClientManagerHandle { send, jh, updates })
     }
 
-    pub fn stop(mut self) {
+    pub fn stop(self) {
         self.send
             .send(())
             .expect("couldn't send message to client connection thread");
@@ -62,38 +62,81 @@ impl ClientManagerHandle {
 struct ClientManager {
     updates: Arc<Mutex<Vec<WorldUpdate>>>,
     listener: TcpListener,
-    recv_c: Arc<Receiver<()>>,
+    stopper: Receiver<()>,
+    recv_c: Arc<Mutex<Receiver<()>>>,
     send: Sender<()>,
-    clients: Vec<ClientConnection>,
+    jhs: Vec<JoinHandle<()>>,
 }
 
 impl ClientManager {
     fn new(
         addr: SocketAddr,
         updates: Arc<Mutex<Vec<WorldUpdate>>>,
+        stopper: Receiver<()>,
     ) -> io::Result<ClientManager> {
         let listener = TcpListener::bind(addr)?;
-        let clients = Vec::new();
+        let jhs = Vec::new();
         let (send, recv) = mpsc::channel();
 
-        let recv_c = Arc::new(recv);
+        let recv_c = Arc::new(Mutex::new(recv));
 
+        listener.set_nonblocking(true).expect("cannot set listener nonblocking");
 
         Ok(ClientManager {
             updates,
             listener,
+            stopper,
             recv_c,
             send,
-            clients,
+            jhs,
         })
     }
 
-    fn run(&mut self) {
-        for stream in self.listener.incoming() {
-            match stream {
-                Ok(stream) => (),
-                Err(e) => eprintln!("Error connecting client: {:?}", e),
+    fn run(mut self) {
+        loop {
+            match self.listener.accept() {
+                Ok((stream, _)) => {
+                    let recv_c = self.recv_c.clone();
+
+                    let jh = thread::spawn(move || {
+                        let mut client = ClientConnection::new(stream);
+
+                        loop {
+                            match recv_c.lock().unwrap().try_recv() {
+                                Ok(_) => break,
+                                Err(TryRecvError::Empty) => {
+                                    // do work
+                                    client.read_from_stream();
+                                }
+                                Err(TryRecvError::Disconnected) => {
+                                    // resolve disconnection
+                                    todo!()
+                                }
+                            }
+                        }
+                    });
+
+                    self.jhs.push(jh);
+                }
+                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                    // nothing to accept; can check for stop call
+                    if self.stopper.try_recv().is_ok() {
+                        self.stop();
+                        break;
+                    }
+                },
+                Err(e) => panic!("Cannot accept client: {:?}", e),
             }
+        }
+    }
+
+    fn stop(self) {
+        for _ in 0..self.jhs.len() {
+            self.send.send(()).expect("couldn't send message to shut down client connectino");
+        }
+
+        for jh in self.jhs {
+            jh.join().expect("couldn't stop thread");
         }
     }
 }
