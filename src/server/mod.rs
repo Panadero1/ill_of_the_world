@@ -1,16 +1,16 @@
 use std::{
     io,
-    net::{ToSocketAddrs, SocketAddr},
+    net::{SocketAddr, ToSocketAddrs},
     sync::mpsc::{self, channel, Receiver, Sender, TryRecvError},
     thread::{self, JoinHandle},
 };
 
-use crate::world::{position, World, WorldUpdate};
+use crate::world::{position, update::WorldUpdate, World};
 
 use self::network::ClientManagerHandle;
 
-mod network;
 mod connection;
+mod network;
 
 pub struct ServerHandle {
     send: Sender<()>,

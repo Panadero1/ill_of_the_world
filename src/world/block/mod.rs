@@ -65,6 +65,8 @@ impl Block {
 }
 
 pub struct BlockUpdate {
-    pub pos: Position,
+    pub chunk: u8,
+    pub column: u8,
+    pub block: u8,
     pub new_data: u8,
 }

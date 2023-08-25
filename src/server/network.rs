@@ -1,9 +1,9 @@
 use std::{
     io,
-    net::{TcpListener, TcpStream, ToSocketAddrs, SocketAddr},
+    net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs},
     ptr,
     sync::{
-        mpsc::{self, Sender, Receiver, TryRecvError},
+        mpsc::{self, Receiver, Sender, TryRecvError},
         Arc, Mutex,
     },
     task::{RawWaker, Waker},
@@ -12,11 +12,9 @@ use std::{
 
 use pollster::FutureExt;
 
-use crate::world::WorldUpdate;
+use crate::world::update::WorldUpdate;
 
 use super::connection::ClientConnection;
-
-const BLOCK_UPDATE_SIZE: usize = 16;
 
 pub struct ClientManagerHandle {
     send: Sender<()>,
@@ -33,7 +31,7 @@ impl ClientManagerHandle {
         let uc = updates.clone();
 
         let jh = thread::spawn(move || {
-            let mut mgr = ClientManager::new(addr, uc, recv).unwrap();
+            let mgr = ClientManager::new(addr, uc, recv).unwrap();
             mgr.run();
         });
 
@@ -80,7 +78,9 @@ impl ClientManager {
 
         let recv_c = Arc::new(Mutex::new(recv));
 
-        listener.set_nonblocking(true).expect("cannot set listener nonblocking");
+        listener
+            .set_nonblocking(true)
+            .expect("cannot set listener nonblocking");
 
         Ok(ClientManager {
             updates,
@@ -97,9 +97,10 @@ impl ClientManager {
             match self.listener.accept() {
                 Ok((stream, _)) => {
                     let recv_c = self.recv_c.clone();
+                    let updates = self.updates.clone();
 
                     let jh = thread::spawn(move || {
-                        let mut client = ClientConnection::new(stream);
+                        let mut client = ClientConnection::new(stream, updates);
 
                         loop {
                             match recv_c.lock().unwrap().try_recv() {
@@ -124,7 +125,7 @@ impl ClientManager {
                         self.stop();
                         break;
                     }
-                },
+                }
                 Err(e) => panic!("Cannot accept client: {:?}", e),
             }
         }
@@ -132,7 +133,9 @@ impl ClientManager {
 
     fn stop(self) {
         for _ in 0..self.jhs.len() {
-            self.send.send(()).expect("couldn't send message to shut down client connectino");
+            self.send
+                .send(())
+                .expect("couldn't send message to shut down client connectino");
         }
 
         for jh in self.jhs {

@@ -1,10 +1,49 @@
-use std::{net::TcpStream, ptr};
 use std::io::Read;
+use std::sync::{Arc, Mutex};
+use std::{net::TcpStream, ptr};
 
+use crate::world::update::WorldUpdate;
+
+#[derive(PartialEq, Eq)]
 enum StreamReadState {
-    None,
+    /// this state occurs be in two cases:
+    /// 1. there has been no data sent yet
+    /// 2. the parser just finished reading data for one type and
+    /// will set the next state in the next pass
+    Unset,
+    /// 0
     BlockUpdate,
+    /// 1
+    PreMessage,
+    /// 2
+    Message,
+    /// 3
     PlayerPos,
+}
+
+impl StreamReadState {
+    fn needs_size(&self) -> Option<usize> {
+        match *self {
+            StreamReadState::Unset => Some(1),
+            StreamReadState::BlockUpdate => Some(4), // may change. Who knows
+            StreamReadState::PreMessage => Some(1),
+            StreamReadState::Message => None,
+            StreamReadState::PlayerPos => Some(12),
+        }
+    }
+}
+
+impl From<u8> for StreamReadState {
+    fn from(value: u8) -> Self {
+        use StreamReadState::*;
+        match value {
+            0 => BlockUpdate,
+            1 => PreMessage,
+            2 => Message,
+            3 => PlayerPos,
+            _ => unreachable!(),
+        }
+    }
 }
 
 const READ_BUF_SIZE: usize = 1024;
@@ -14,16 +53,17 @@ pub struct ClientConnection {
     state: StreamReadState,
     par_buf: [u8; 256],
     pb_len: usize,
-    // todo: add updates mutex thing
+    updates: Arc<Mutex<Vec<WorldUpdate>>>,
 }
 
 impl ClientConnection {
-    pub fn new(stream: TcpStream) -> ClientConnection {
+    pub fn new(stream: TcpStream, updates: Arc<Mutex<Vec<WorldUpdate>>>) -> ClientConnection {
         ClientConnection {
             stream,
-            state: StreamReadState::None,
+            state: StreamReadState::Unset,
             par_buf: [0; 256],
             pb_len: 0,
+            updates,
         }
     }
 
@@ -39,21 +79,28 @@ impl ClientConnection {
     pub fn read_bytes(&mut self, bytes: &[u8], len: usize) {
         let mut amt_read = 0;
         let mut pbi = 0;
+        let mut dynamic_size = 0;
         loop {
+            use StreamReadState::*;
             let bytes_left = &bytes[amt_read..];
             let len_left = len - amt_read;
-            match self.state {
-                StreamReadState::None => {
-                    let mut byte = [0];
-                    if !self.try_read(bytes_left, &mut byte, 1, len_left, &mut pbi) {
-                        break;
-                    }
-                    self.switch_state(byte[0]);
-                    amt_read += 1;
-                }
-                StreamReadState::BlockUpdate => {}
-                StreamReadState::PlayerPos => {}
+            let n = self.state.needs_size();
+            let n = if let Some(n) = n { n } else { dynamic_size };
+            let mut data = Vec::with_capacity(n);
+
+            if !self.try_read(bytes_left, &mut data[..], n, len_left, &mut pbi) {
+                break;
             }
+
+            match self.state {
+                Unset => self.switch_state(data[0]),
+                BlockUpdate => todo!(), // extract block update from it
+                PreMessage => dynamic_size = data[0] as usize,
+                Message => todo!(), // add to chat log or something
+                PlayerPos => todo!(), // update recorded position
+            }
+
+            amt_read += n;
         }
 
         let pb_left = self.pb_len - pbi;
@@ -64,6 +111,10 @@ impl ClientConnection {
                 pb_left,
             );
         }
+    }
+
+    fn switch_state(&mut self, new_state: u8) {
+        self.state = new_state.into();
     }
 
     fn try_read(
@@ -93,8 +144,32 @@ impl ClientConnection {
 
         return true;
     }
+}
 
-    fn switch_state(&mut self, new_state: u8) {
-        todo!()
+#[cfg(test)]
+mod tests {
+    use std::{
+        net::{TcpListener, TcpStream},
+        sync::{Arc, Mutex},
+    };
+
+    use rand::{distributions::Uniform, Rng};
+
+    use super::ClientConnection;
+
+    #[test]
+    fn test_try_read_fuzzy() {
+        let _dummy_listener = TcpListener::bind("127.0.0.1:8421").unwrap();
+        let dummy_stream = TcpStream::connect("127.0.0.1:8421").unwrap();
+        let cc = ClientConnection::new(dummy_stream, Arc::new(Mutex::new(Vec::new())));
+
+        let mut r = rand::thread_rng();
+        let range = Uniform::new(u8::MIN, u8::MAX);
+
+        let test_data = (0..4096).map(|_| r.sample(&range)).collect::<Vec<_>>();
+
+        let mut res = [0; 1024];
+
+        // todo: finish after parsing is finished
     }
 }

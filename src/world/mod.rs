@@ -5,6 +5,7 @@ use self::{block::BlockUpdate, position::Position};
 pub mod block;
 mod generation;
 pub mod position;
+pub mod update;
 
 const SINGLE: usize = 256;
 const DOUBLE: usize = 256 * 256;
@@ -40,7 +41,7 @@ impl World {
 
     /// update the world given this specific update
     pub fn process_update(&mut self, update: BlockUpdate) {
-        self.get_block_mut(update.pos).data = update.new_data;
+        self.get_block_mut(position::from_ccb(update.chunk, update.column, update.block)).data = update.new_data;
     }
 
     /// simulates one "tick" at the given chunk
@@ -53,5 +54,3 @@ impl World {
         generation::generate()
     }
 }
-
-pub struct WorldUpdate {}
